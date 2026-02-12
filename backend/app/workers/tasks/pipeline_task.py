@@ -227,9 +227,7 @@ def run_full_pipeline(self, job_id: str, user_id: str, script: str, duration: in
                 'videos_created_this_month': firestore.Increment(1)
             })
         
-        # Schedule cleanup
-        from app.workers.tasks.cleanup_task import cleanup_job
-        cleanup_job.apply_async(args=[job_id, user_id], countdown=1200)  # 20 minutes
+        # TODO: Schedule cleanup after 20 minutes (implement later)
         
         return {
             'success': True,

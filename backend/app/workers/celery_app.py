@@ -12,7 +12,6 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
         'app.workers.tasks.pipeline_task',
-        'app.workers.tasks.cleanup_task',
     ]
 )
 
@@ -32,7 +31,6 @@ celery_app.conf.update(
 # Task routes (assign tasks to specific queues)
 celery_app.conf.task_routes = {
     'app.workers.tasks.pipeline_task.*': {'queue': 'default'},
-    'app.workers.tasks.cleanup_task.*': {'queue': 'default'},
 }
 
 if __name__ == '__main__':
