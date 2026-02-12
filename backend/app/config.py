@@ -18,7 +18,9 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://yourdomain.com"
+        "https://vidsquad.vercel.app",
+        "https://*.vercel.app",
+        "*"  # Allow all for now
     ]
     
     # Redis
