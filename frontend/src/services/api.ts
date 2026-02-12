@@ -77,11 +77,11 @@ export const getDownloadLinks = async (
   clips_count: number;
   images_count: number;
 }> => {
-  const token = await auth.currentUser?.getIdToken();
+  // const token = await auth.currentUser?.getIdToken(); // Disabled for now
 
   const response = await fetch(`${API_URL}/api/videos/download/${jobId}`, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      // Authorization: `Bearer ${token}`, // Disabled for now
     },
   });
 
@@ -108,11 +108,11 @@ export const getProjects = async (): Promise<{
   }>;
   total: number;
 }> => {
-  const token = await auth.currentUser?.getIdToken();
+  // const token = await auth.currentUser?.getIdToken(); // Disabled for now
 
   const response = await fetch(`${API_URL}/api/projects/`, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      // Authorization: `Bearer ${token}`, // Disabled for now
     },
   });
 
@@ -134,11 +134,11 @@ export const getCurrentUser = async (): Promise<{
   videos_created_this_month: number;
   created_at: string;
 }> => {
-  const token = await auth.currentUser?.getIdToken();
+  // const token = await auth.currentUser?.getIdToken(); // Disabled for now
 
   const response = await fetch(`${API_URL}/api/auth/me`, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      // Authorization: `Bearer ${token}`, // Disabled for now
     },
   });
 
@@ -160,11 +160,11 @@ export const getQueueStatus = async (): Promise<{
   failed_jobs: number;
   estimated_wait_time_seconds: number;
 }> => {
-  const token = await auth.currentUser?.getIdToken();
+  // const token = await auth.currentUser?.getIdToken(); // Disabled for now
 
   const response = await fetch(`${API_URL}/api/videos/queue/status`, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      // Authorization: `Bearer ${token}`, // Disabled for now
     },
   });
 
@@ -188,12 +188,12 @@ export const generateImage = async (
   image_url: string;
   prompt: string;
 }> => {
-  const token = await auth.currentUser?.getIdToken();
+  // const token = await auth.currentUser?.getIdToken(); // Disabled for now
 
   const response = await fetch(`${API_URL}/api/images/generate`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      // Authorization: `Bearer ${token}`, // Disabled for now
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ prompt, provider }),
