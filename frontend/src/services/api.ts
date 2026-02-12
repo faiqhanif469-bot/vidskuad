@@ -206,3 +206,92 @@ export const generateImage = async (
 
   return await response.json();
 };
+
+/**
+ * Connect to WebSocket for real-time progress updates
+ * Falls back to polling if WebSocket fails
+ */
+export const connectProgressWebSocket = (
+  jobId: string,
+  onUpdate: (data: any) => void,
+  onError: (error: Error) => void
+): (() => void) => {
+  const wsUrl = API_URL.replace('http', 'ws').replace('https', 'wss');
+  let ws: WebSocket | null = null;
+  let pollInterval: NodeJS.Timeout | null = null;
+  let isConnected = false;
+
+  // Try WebSocket first
+  try {
+    ws = new WebSocket(`${wsUrl}/ws/progress/${jobId}`);
+
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+      isConnected = true;
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onUpdate(data);
+
+        // Close if completed or failed
+        if (data.status === 'completed' || data.status === 'failed') {
+          ws?.close();
+        }
+      } catch (err) {
+        console.error('Error parsing WebSocket message:', err);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      isConnected = false;
+      
+      // Fallback to polling
+      if (!pollInterval) {
+        console.log('Falling back to polling...');
+        startPolling();
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket closed');
+      isConnected = false;
+    };
+  } catch (err) {
+    console.error('Failed to create WebSocket:', err);
+    startPolling();
+  }
+
+  // Polling fallback
+  function startPolling() {
+    pollInterval = setInterval(async () => {
+      try {
+        const status = await checkStatus(jobId);
+        onUpdate(status);
+
+        // Stop polling if completed or failed
+        if (status.status === 'completed' || status.status === 'failed') {
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+        }
+      } catch (err: any) {
+        console.error('Polling error:', err);
+        onError(err);
+      }
+    }, 2000);
+  }
+
+  // Cleanup function
+  return () => {
+    if (ws && isConnected) {
+      ws.close();
+    }
+    if (pollInterval) {
+      clearInterval(pollInterval);
+    }
+  };
+};

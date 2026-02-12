@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { InputScreen } from '@/app/components/InputScreen';
 import { ProgressScreen } from '@/components/ProgressScreen';
 import { DownloadScreen } from '@/components/DownloadScreen';
-import { generateVideo, checkStatus } from '@/services/api';
+import { generateVideo, connectProgressWebSocket } from '@/services/api';
 
 type Screen = 'input' | 'progress' | 'download'; // Removed 'auth'
 
@@ -31,7 +31,6 @@ interface JobData {
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('input'); // Skip auth for now
-  const [user, setUser] = useState<any>(null);
   const [jobData, setJobData] = useState<JobData | null>(null);
   const [error, setError] = useState<string>('');
 
@@ -48,13 +47,6 @@ export default function App() {
 
   //   return () => unsubscribe();
   // }, []);
-
-  // Store input data temporarily
-  const [inputData, setInputData] = useState<{
-    script: string;
-    duration: string;
-    title: string;
-  } | null>(null);
 
   // Handle script submission from InputScreen
   const handleInputSubmit = async (script: string, duration: string, title: string) => {
@@ -85,37 +77,36 @@ export default function App() {
       // Move to progress screen
       setCurrentScreen('progress');
       
-      // Start polling for status
-      const pollInterval = setInterval(async () => {
-        try {
-          const status = await checkStatus(result.job_id);
-          
+      // Connect to WebSocket for real-time updates (with polling fallback)
+      const cleanup = connectProgressWebSocket(
+        result.job_id,
+        (data) => {
+          // Update job data with real-time progress
           setJobData({
             jobId: result.job_id,
-            status: status.status,
-            progress: status.progress,
-            currentStep: status.current_step,
-            etaSeconds: status.eta_seconds,
-            error: status.error,
-            result: status.result,
+            status: data.status,
+            progress: data.progress,
+            currentStep: data.current_step,
+            etaSeconds: data.eta_seconds,
+            error: data.error,
+            result: data.result,
           });
           
-          // If completed or failed, stop polling
-          if (status.status === 'completed') {
-            clearInterval(pollInterval);
+          // If completed, move to download screen
+          if (data.status === 'completed') {
             setCurrentScreen('download');
-          } else if (status.status === 'failed') {
-            clearInterval(pollInterval);
-            setError(status.error || 'Video generation failed');
+          } else if (data.status === 'failed') {
+            setError(data.error || 'Video generation failed');
           }
-        } catch (err: any) {
-          console.error('Error checking status:', err);
-          // Don't stop polling on error, might be temporary
+        },
+        (err) => {
+          console.error('Progress update error:', err);
+          // Don't show error to user, WebSocket will fallback to polling
         }
-      }, 2000); // Poll every 2 seconds
+      );
       
       // Cleanup on unmount
-      return () => clearInterval(pollInterval);
+      return cleanup;
       
     } catch (err: any) {
       console.error('Error starting video generation:', err);
