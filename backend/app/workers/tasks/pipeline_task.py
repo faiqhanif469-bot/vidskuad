@@ -310,8 +310,10 @@ def run_full_pipeline(self, job_id: str, user_id: str, script: str, duration: in
                 project_ref = db.collection('projects').document(job_id)
                 project_ref.update({
                     'status': 'failed',
-                'error': str(e),
-                'updated_at': firestore.SERVER_TIMESTAMP
-            })
+                    'error': error_msg,
+                    'updated_at': firestore.SERVER_TIMESTAMP
+                })
+            except:
+                pass  # Ignore Firestore errors
         
         raise
