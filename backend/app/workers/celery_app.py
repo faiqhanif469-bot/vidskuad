@@ -12,11 +12,7 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
         'app.workers.tasks.pipeline_task',
-        'app.workers.tasks.analyze_task',
-        'app.workers.tasks.search_task',
-        'app.workers.tasks.download_task',
-        'app.workers.tasks.image_task',
-        'app.workers.tasks.export_task',
+        'app.workers.tasks.cleanup_task',
     ]
 )
 
@@ -35,11 +31,8 @@ celery_app.conf.update(
 
 # Task routes (assign tasks to specific queues)
 celery_app.conf.task_routes = {
-    'app.workers.tasks.analyze_task.*': {'queue': 'analysis'},
-    'app.workers.tasks.search_task.*': {'queue': 'search'},
-    'app.workers.tasks.download_task.*': {'queue': 'download'},
-    'app.workers.tasks.image_task.*': {'queue': 'images'},
-    'app.workers.tasks.export_task.*': {'queue': 'export'},
+    'app.workers.tasks.pipeline_task.*': {'queue': 'default'},
+    'app.workers.tasks.cleanup_task.*': {'queue': 'default'},
 }
 
 if __name__ == '__main__':
