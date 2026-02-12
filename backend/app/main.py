@@ -5,8 +5,10 @@ Production-ready API for AI Video Production System
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import time
+from pathlib import Path
 
 from app.api.routes import auth, projects, videos, images, exports
 from app.api import websockets
@@ -46,6 +48,22 @@ app.include_router(videos.router, prefix="/api/videos", tags=["Video Generation"
 app.include_router(images.router, prefix="/api/images", tags=["Image Generation"])
 app.include_router(exports.router, prefix="/api/exports", tags=["Exports"])
 app.include_router(websockets.router, prefix="/ws", tags=["WebSocket"])
+
+# Serve local files if using local storage
+if settings.USE_LOCAL_STORAGE:
+    storage_path = Path(settings.LOCAL_STORAGE_PATH)
+    storage_path.mkdir(parents=True, exist_ok=True)
+    
+    @app.get("/api/files/{file_path:path}")
+    async def serve_file(file_path: str):
+        """Serve files from local storage"""
+        full_path = storage_path / file_path
+        if full_path.exists() and full_path.is_file():
+            return FileResponse(full_path)
+        return JSONResponse(
+            status_code=404,
+            content={"error": "File not found"}
+        )
 
 # Health check
 @app.get("/health")

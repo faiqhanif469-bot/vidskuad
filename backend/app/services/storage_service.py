@@ -1,5 +1,5 @@
 """
-DigitalOcean Spaces Storage Service
+Storage Service - Supports both Local and DigitalOcean Spaces
 """
 
 import boto3
@@ -8,43 +8,61 @@ from app.config import settings
 import os
 from pathlib import Path
 import zipfile
+import shutil
 
 
 class StorageService:
-    """Handle file uploads to DigitalOcean Spaces"""
+    """Handle file uploads to Local Storage or DigitalOcean Spaces"""
     
     def __init__(self):
-        self.client = boto3.client(
-            's3',
-            region_name=settings.DO_SPACES_REGION,
-            endpoint_url=settings.DO_SPACES_ENDPOINT,
-            aws_access_key_id=settings.DO_SPACES_KEY,
-            aws_secret_access_key=settings.DO_SPACES_SECRET,
-            config=BotoConfig(signature_version='s3v4')
-        )
-        self.bucket = settings.DO_SPACES_BUCKET
+        self.use_local = settings.USE_LOCAL_STORAGE
+        
+        if not self.use_local:
+            self.client = boto3.client(
+                's3',
+                region_name=settings.DO_SPACES_REGION,
+                endpoint_url=settings.DO_SPACES_ENDPOINT,
+                aws_access_key_id=settings.DO_SPACES_KEY,
+                aws_secret_access_key=settings.DO_SPACES_SECRET,
+                config=BotoConfig(signature_version='s3v4')
+            )
+            self.bucket = settings.DO_SPACES_BUCKET
+        else:
+            # Create local storage directory
+            self.local_path = Path(settings.LOCAL_STORAGE_PATH)
+            self.local_path.mkdir(parents=True, exist_ok=True)
     
     def upload_file(self, file_path: str, object_name: str) -> str:
         """
-        Upload a single file to Spaces
+        Upload a single file to Storage
         
         Args:
             file_path: Local file path
-            object_name: Object name in Spaces
+            object_name: Object name/path
         
         Returns:
             Public URL of uploaded file
         """
         try:
-            self.client.upload_file(
-                file_path,
-                self.bucket,
-                object_name,
-                ExtraArgs={'ACL': 'public-read'}
-            )
-            
-            url = f"{settings.DO_SPACES_ENDPOINT}/{self.bucket}/{object_name}"
-            return url
+            if self.use_local:
+                # Copy to local storage
+                dest_path = self.local_path / object_name
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file_path, dest_path)
+                
+                # Return local URL
+                return f"/api/files/{object_name}"
+            else:
+                # Upload to Spaces
+                self.client.upload_file(
+                    file_path,
+                    self.bucket,
+                    object_name,
+                    ExtraArgs={'ACL': 'public-read'}
+                )
+                
+                url = f"{settings.DO_SPACES_ENDPOINT}/{self.bucket}/{object_name}"
+                return url
         
         except Exception as e:
             print(f"Error uploading file: {e}")
@@ -52,11 +70,11 @@ class StorageService:
     
     def upload_folder(self, folder_path: str, prefix: str) -> str:
         """
-        Upload entire folder as ZIP to Spaces
+        Upload entire folder as ZIP to Storage
         
         Args:
             folder_path: Local folder path
-            prefix: Prefix in Spaces (user_id/job_id/type)
+            prefix: Prefix/path (user_id/job_id/type)
         
         Returns:
             Public URL of uploaded ZIP
@@ -86,34 +104,44 @@ class StorageService:
             raise
     
     def delete_file(self, object_name: str):
-        """Delete file from Spaces"""
+        """Delete file from Storage"""
         try:
-            self.client.delete_object(
-                Bucket=self.bucket,
-                Key=object_name
-            )
+            if self.use_local:
+                file_path = self.local_path / object_name
+                if file_path.exists():
+                    file_path.unlink()
+            else:
+                self.client.delete_object(
+                    Bucket=self.bucket,
+                    Key=object_name
+                )
         except Exception as e:
             print(f"Error deleting file: {e}")
     
     def delete_folder(self, prefix: str):
         """Delete all files with prefix"""
         try:
-            # List objects
-            response = self.client.list_objects_v2(
-                Bucket=self.bucket,
-                Prefix=prefix
-            )
-            
-            if 'Contents' not in response:
-                return
-            
-            # Delete objects
-            objects = [{'Key': obj['Key']} for obj in response['Contents']]
-            
-            self.client.delete_objects(
-                Bucket=self.bucket,
-                Delete={'Objects': objects}
-            )
+            if self.use_local:
+                folder_path = self.local_path / prefix
+                if folder_path.exists():
+                    shutil.rmtree(folder_path)
+            else:
+                # List objects
+                response = self.client.list_objects_v2(
+                    Bucket=self.bucket,
+                    Prefix=prefix
+                )
+                
+                if 'Contents' not in response:
+                    return
+                
+                # Delete objects
+                objects = [{'Key': obj['Key']} for obj in response['Contents']]
+                
+                self.client.delete_objects(
+                    Bucket=self.bucket,
+                    Delete={'Objects': objects}
+                )
         
         except Exception as e:
             print(f"Error deleting folder: {e}")
