@@ -37,10 +37,7 @@ class JobStatusResponse(BaseModel):
 
 
 @router.post("/generate")
-async def generate_video(
-    request: VideoGenerationRequest,
-    user: dict = Depends(check_rate_limit)
-):
+async def generate_video(request: VideoGenerationRequest):
     """
     Start video generation pipeline
     
@@ -56,33 +53,36 @@ async def generate_video(
     try:
         # Create job ID
         job_id = str(uuid.uuid4())
+        user_id = "anonymous"  # No auth for now
         
-        # Create project in Firestore
-        project_ref = db.collection('projects').document(job_id)
-        project_ref.set({
-            'job_id': job_id,
-            'user_id': user['user_id'],
-            'title': request.title or 'Untitled Video',
-            'script': request.script,
-            'duration': request.duration,
-            'status': 'queued',
-            'progress': 0,
-            'created_at': firestore.SERVER_TIMESTAMP,
-            'updated_at': firestore.SERVER_TIMESTAMP
-        })
+        # Create project in Firestore (if available)
+        if db is not None:
+            project_ref = db.collection('projects').document(job_id)
+            project_ref.set({
+                'job_id': job_id,
+                'user_id': user_id,
+                'title': request.title or 'Untitled Video',
+                'script': request.script,
+                'duration': request.duration,
+                'status': 'queued',
+                'progress': 0,
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
         
         # Queue job to Celery
         task = run_full_pipeline.delay(
             job_id=job_id,
-            user_id=user['user_id'],
+            user_id=user_id,
             script=request.script,
             duration=request.duration
         )
         
-        # Store task ID
-        project_ref.update({
-            'task_id': task.id
-        })
+        # Store task ID (if Firestore available)
+        if db is not None:
+            project_ref.update({
+                'task_id': task.id
+            })
         
         return {
             'success': True,
@@ -97,10 +97,7 @@ async def generate_video(
 
 
 @router.get("/status/{job_id}")
-async def get_job_status(
-    job_id: str,
-    user: dict = Depends(get_current_user)
-):
+async def get_job_status(job_id: str):
     """
     Get job status and progress
     
@@ -112,6 +109,9 @@ async def get_job_status(
     - result: Download links (when completed)
     """
     try:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
+        
         # Get project from Firestore
         project_ref = db.collection('projects').document(job_id)
         project = project_ref.get()
@@ -120,10 +120,6 @@ async def get_job_status(
             raise HTTPException(status_code=404, detail="Job not found")
         
         project_data = project.to_dict()
-        
-        # Check ownership
-        if project_data['user_id'] != user['user_id']:
-            raise HTTPException(status_code=403, detail="Access denied")
         
         return {
             'job_id': job_id,
@@ -142,10 +138,7 @@ async def get_job_status(
 
 
 @router.get("/download/{job_id}")
-async def get_download_links(
-    job_id: str,
-    user: dict = Depends(get_current_user)
-):
+async def get_download_links(job_id: str):
     """
     Get download links for completed job
     
@@ -155,6 +148,9 @@ async def get_download_links(
     - expires_at: Link expiration time
     """
     try:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
+        
         # Get project from Firestore
         project_ref = db.collection('projects').document(job_id)
         project = project_ref.get()
@@ -163,10 +159,6 @@ async def get_download_links(
             raise HTTPException(status_code=404, detail="Job not found")
         
         project_data = project.to_dict()
-        
-        # Check ownership
-        if project_data['user_id'] != user['user_id']:
-            raise HTTPException(status_code=403, detail="Access denied")
         
         # Check if completed
         if project_data.get('status') != 'completed':
@@ -194,26 +186,20 @@ async def get_download_links(
 
 
 @router.delete("/{job_id}")
-async def delete_job(
-    job_id: str,
-    user: dict = Depends(get_current_user)
-):
+async def delete_job(job_id: str):
     """
     Delete job and associated files
     """
     try:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
+        
         # Get project from Firestore
         project_ref = db.collection('projects').document(job_id)
         project = project_ref.get()
         
         if not project.exists:
             raise HTTPException(status_code=404, detail="Job not found")
-        
-        project_data = project.to_dict()
-        
-        # Check ownership
-        if project_data['user_id'] != user['user_id']:
-            raise HTTPException(status_code=403, detail="Access denied")
         
         # Delete from Firestore
         project_ref.delete()
@@ -232,7 +218,7 @@ async def delete_job(
 
 
 @router.get("/queue/status")
-async def get_queue_status(user: dict = Depends(get_current_user)):
+async def get_queue_status():
     """
     Get current queue status
     
