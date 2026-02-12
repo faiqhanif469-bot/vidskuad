@@ -2,7 +2,8 @@
 Multi-agent crew for video production planning
 """
 
-from crewai import Agent, Task, Crew, Process, LLM
+from crewai import Agent, Task, Crew, Process
+from langchain_groq import ChatGroq
 from src.core.config import Config
 from src.agents.prompts import (
     SCRIPT_ANALYST_PROMPT,
@@ -25,12 +26,12 @@ class ProductionCrew:
         if not config.model.groq_api_key:
             raise ValueError("GROQ_API_KEY not found in environment. Please check your .env file.")
         
-        # Use CrewAI's native LLM class with explicit API key
+        # Use ChatGroq for LLM
         import os
         os.environ['GROQ_API_KEY'] = config.model.groq_api_key
         
-        self.llm = LLM(
-            model=f"groq/{config.model.model_name}",
+        self.llm = ChatGroq(
+            model=config.model.model_name,
             api_key=config.model.groq_api_key
         )
         
