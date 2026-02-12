@@ -58,9 +58,14 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_JOBS: int = 4  # Max 4 videos processing at once
     JOB_TIMEOUT_MINUTES: int = 30  # Job timeout
     
+    # Storage settings
+    USE_LOCAL_STORAGE: bool = False
+    LOCAL_STORAGE_PATH: str = "/app/output"
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields in .env
 
 
 settings = Settings()
