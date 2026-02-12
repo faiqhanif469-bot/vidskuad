@@ -186,7 +186,7 @@ class PremiereExporter:
                                                 </rate>
                                                 <file id="file-{i+1}">
                                                     <name>{Path(item['path']).name}</name>
-                                                    <pathurl>file://localhost/{item['path'].replace('\\', '/')}</pathurl>
+                                                    <pathurl>file://localhost/{item['path'].replace(chr(92), '/')}</pathurl>
                                                     <rate>
                                                         <timebase>{self.frame_rate}</timebase>
                                                     </rate>
@@ -233,7 +233,7 @@ class PremiereExporter:
                                                 <duration>{int(item['duration'] * self.frame_rate)}</duration>
                                                 <file id="file-img-{i+1}">
                                                     <name>{Path(item['path']).name}</name>
-                                                    <pathurl>file://localhost/{item['path'].replace('\\', '/')}</pathurl>
+                                                    <pathurl>file://localhost/{item['path'].replace(chr(92), '/')}</pathurl>
                                                     <media>
                                                         <video>
                                                             <duration>{int(item['duration'] * self.frame_rate)}</duration>
