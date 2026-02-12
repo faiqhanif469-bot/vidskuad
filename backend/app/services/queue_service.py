@@ -5,8 +5,7 @@ Monitor Celery queue status
 
 from app.workers.celery_app import celery_app
 from firebase_admin import firestore
-
-db = firestore.client()
+from app.dependencies import db
 
 
 class QueueService:
@@ -30,20 +29,26 @@ class QueueService:
                 for worker, tasks in active.items():
                     active_count += len(tasks)
             
-            # Get queue stats from Firestore
-            projects_ref = db.collection('projects')
+            # Get queue stats from Firestore (if available)
+            pending_count = 0
+            processing_count = 0
+            completed_count = 0
+            failed_count = 0
             
-            pending = projects_ref.where('status', '==', 'queued').stream()
-            pending_count = len(list(pending))
-            
-            processing = projects_ref.where('status', '==', 'processing').stream()
-            processing_count = len(list(processing))
-            
-            completed = projects_ref.where('status', '==', 'completed').stream()
-            completed_count = len(list(completed))
-            
-            failed = projects_ref.where('status', '==', 'failed').stream()
-            failed_count = len(list(failed))
+            if db is not None:
+                projects_ref = db.collection('projects')
+                
+                pending = projects_ref.where('status', '==', 'queued').stream()
+                pending_count = len(list(pending))
+                
+                processing = projects_ref.where('status', '==', 'processing').stream()
+                processing_count = len(list(processing))
+                
+                completed = projects_ref.where('status', '==', 'completed').stream()
+                completed_count = len(list(completed))
+                
+                failed = projects_ref.where('status', '==', 'failed').stream()
+                failed_count = len(list(failed))
             
             # Estimate wait time (4 minutes per job, 4 workers)
             avg_job_time = 240  # 4 minutes
