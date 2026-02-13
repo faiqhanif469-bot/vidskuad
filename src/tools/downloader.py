@@ -253,7 +253,18 @@ class VideoDownloader:
                 
                 # If start_time is 0, get video info first to pick random start
                 if start_time == 0:
-                    with yt_dlp.YoutubeDL({'quiet': True, 'cookiefile': cookie_path}) as ydl:
+                    info_opts = {
+                        'quiet': True,
+                        'cookiefile': cookie_path,
+                        'extractor_args': {
+                            'youtube': {
+                                'player_client': ['tv_embedded', 'web'],
+                                'player_skip': ['webpage', 'configs'],
+                            }
+                        },
+                        'remote_components': ['ejs:github'],
+                    }
+                    with yt_dlp.YoutubeDL(info_opts) as ydl:
                         info = ydl.extract_info(url, download=False)
                         video_duration = info.get('duration', 60)
                         # Pick random start time, leaving room for the clip
