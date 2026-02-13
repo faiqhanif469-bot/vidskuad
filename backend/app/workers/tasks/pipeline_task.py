@@ -206,15 +206,17 @@ def run_full_pipeline(self, job_id: str, user_id: str, script: str, duration: in
         
         update_job_progress(job_id, 'processing', 40, 'Videos found', 120)
         
-        # STEP 3: Download & Extract Clips (Direct extraction without full download)
+        # STEP 3: Extract Clips (Direct extraction without full download)
         update_job_progress(job_id, 'processing', 50, 'Extracting clips...', 90)
         
-        downloader = VideoDownloader()
+        extractor = BRollExtractor(output_dir=f"{output_dir}/clips")
         extracted_clips = []
         
         for scene in plan.get('scenes', []):
             scene_num = scene.get('scene_number')
             scene_duration = scene.get('duration', 5)
+            scene_desc = scene.get('scene_description', '')
+            keywords = scene.get('keywords', [])
             
             # Get best video
             best_video = None
@@ -228,20 +230,23 @@ def run_full_pipeline(self, job_id: str, user_id: str, script: str, duration: in
                 continue
             
             try:
-                # Extract clip directly without downloading full video
-                clip_filename = f"scene_{scene_num:03d}.mp4"
-                clip_path = downloader.download_clip(
-                    url=best_video['url'],
-                    start_time=0,  # 0 = random start time
+                # Use existing broll_extractor to extract clip directly
+                clips = extractor._extract_random_clips(
+                    video={
+                        'url': best_video['url'],
+                        'id': best_video['url'].split('=')[-1],  # Extract video ID from URL
+                        'title': best_video.get('title', 'Unknown')
+                    },
+                    scene_description=scene_desc,
                     duration=scene_duration,
-                    output_path=f"{output_dir}/clips/{clip_filename}"
+                    num_clips=1
                 )
                 
-                if clip_path:
+                if clips:
                     extracted_clips.append({
-                        'scene': scene.get('scene_description', ''),
+                        'scene': scene_desc,
                         'scene_number': scene_num,
-                        'path': clip_path,
+                        'path': clips[0]['path'],
                         'source_url': best_video['url']
                     })
             except Exception as e:

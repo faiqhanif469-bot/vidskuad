@@ -152,10 +152,22 @@ class BRollExtractor:
     def _get_video_duration(self, url: str) -> Optional[int]:
         """Get video duration without downloading"""
         try:
+            from src.tools.cookie_manager import get_cookie_manager
+            cookie_manager = get_cookie_manager()
+            cookie = cookie_manager.get_best_cookie()
+            
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
-                'extract_flat': False
+                'extract_flat': False,
+                'cookiefile': cookie.path if cookie else None,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv_embedded', 'web'],
+                        'player_skip': ['webpage', 'configs'],
+                    }
+                },
+                'remote_components': ['ejs:github'],
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -177,6 +189,10 @@ class BRollExtractor:
     ) -> Optional[str]:
         """Download ONLY the specific segment (not full video) using yt-dlp + ffmpeg"""
         
+        from src.tools.cookie_manager import get_cookie_manager
+        cookie_manager = get_cookie_manager()
+        cookie = cookie_manager.get_best_cookie()
+        
         # Create safe filename with video ID for uniqueness
         safe_name = "".join(c for c in scene_description if c.isalnum() or c in (' ', '-', '_'))
         safe_name = safe_name.replace(' ', '_')[:30]
@@ -189,8 +205,23 @@ class BRollExtractor:
             ydl_opts = {
                 'format': 'best[ext=mp4]/best',
                 'outtmpl': str(output_path),
-                'quiet': True,
-                'no_warnings': True,
+                'quiet': False,
+                'no_warnings': False,
+                
+                # CRITICAL: Enable Deno JS runtime to solve YouTube's JS challenges
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv_embedded', 'web'],
+                        'player_skip': ['webpage', 'configs'],
+                    }
+                },
+                
+                # Enable remote challenge solver scripts for Deno
+                'remote_components': ['ejs:github'],
+                
+                # Use cookies for authentication
+                'cookiefile': cookie.path if cookie else None,
+                
                 # Download only the specific time range
                 'download_ranges': lambda info_dict, ydl: [{
                     'start_time': start_time,
@@ -203,12 +234,16 @@ class BRollExtractor:
                 ydl.download([url])
             
             if output_path.exists():
+                if cookie:
+                    cookie_manager.report_success(cookie)
                 return str(output_path)
             else:
                 print(f"   ❌ Clip not created")
                 return None
         
         except Exception as e:
+            if cookie:
+                cookie_manager.report_failure(cookie, str(e)[:50])
             print(f"   ❌ Error downloading clip: {e}")
             return None
     
