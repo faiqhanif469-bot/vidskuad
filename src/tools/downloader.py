@@ -65,9 +65,13 @@ class VideoDownloader:
                     'quiet': False,
                     'no_warnings': False,
                     
-                    # BYPASS BOT DETECTION: Try multiple client strategies
-                    # tv_embedded works best for avoiding bot detection
-                    'extractor_args': {'youtube': {'player_client': ['tv_embedded', 'web']}},
+                    # CRITICAL: Enable Deno JS runtime to solve YouTube's JS challenges
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['tv_embedded', 'web'],
+                            'player_skip': ['webpage', 'configs'],
+                        }
+                    },
                     
                     # Use cookies for authentication
                     'cookiefile': cookie.path if cookie else None,
@@ -77,12 +81,13 @@ class VideoDownloader:
                     'referer': 'https://www.youtube.com/',
                     
                     # Rate limiting
-                    'sleep_interval': random.uniform(2, 4),
-                    'max_sleep_interval': 8,
+                    'sleep_interval': random.uniform(3, 6),
+                    'max_sleep_interval': 10,
+                    'sleep_interval_requests': 3,
                     
                     # Retry settings
-                    'retries': 2,
-                    'fragment_retries': 2,
+                    'retries': 3,
+                    'fragment_retries': 3,
                 }
                 
                 # Don't use cookies with Android client (not supported)
@@ -156,26 +161,29 @@ class VideoDownloader:
                     'quiet': False,
                     'no_warnings': False,
                     
-                    # BYPASS BOT DETECTION: Try multiple client strategies
-                    # tv_embedded works best for avoiding bot detection
-                    'extractor_args': {'youtube': {'player_client': ['tv_embedded', 'web']}},
+                    # CRITICAL: Enable Deno JS runtime to solve YouTube's JS challenges
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['tv_embedded', 'web'],
+                            'player_skip': ['webpage', 'configs'],
+                        }
+                    },
                     
                     # Use cookies for authentication
                     'cookiefile': cookie_path if cookie_path else None,
                     
                     'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     'referer': 'https://www.youtube.com/',
-                    'sleep_interval': random.uniform(2, 5),  # Increased delay
-                    'max_sleep_interval': 10,  # Increased max delay
-                    'sleep_interval_requests': 2,  # Delay between requests
-                    'sleep_interval_subtitles': 2,  # Delay for subtitles
+                    'sleep_interval': random.uniform(3, 6),
+                    'max_sleep_interval': 10,
+                    'sleep_interval_requests': 3,
+                    'sleep_interval_subtitles': 2,
                     'retries': 3,
                     'fragment_retries': 3,
                     'extractor_retries': 3,
-                    # Additional anti-detection options
                     'nocheckcertificate': True,
                     'prefer_insecure': False,
-                    'http_chunk_size': 10485760,  # 10MB chunks
+                    'http_chunk_size': 10485760,
                 }
                 
                 # Don't use cookies with Android client (not supported)
