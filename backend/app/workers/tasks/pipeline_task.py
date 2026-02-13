@@ -178,35 +178,26 @@ def run_full_pipeline(self, job_id: str, user_id: str, script: str, duration: in
         channel_finder = ChannelVideoFinder()
         
         for scene in plan.get('scenes', []):
-            # Generate search query from scene description and keywords
-            scene_desc = scene.get('scene_description', '')
-            keywords = scene.get('keywords', [])
-            
-            # Create search query
-            if keywords:
-                query = ' '.join(keywords[:3])  # Use top 3 keywords
-            else:
-                query = scene_desc[:50]  # Use first 50 chars of description
-            
             try:
-                # Search through curated channels
-                results = channel_finder.search(query, max_results=5)
+                # Find videos from curated channels
+                videos = channel_finder.find_videos_for_scene(scene)
                 
                 # Add results to scene
                 if 'search_queries' not in scene:
                     scene['search_queries'] = []
                 
+                # Convert to expected format
                 scene['search_queries'].append({
-                    'query': query,
-                    'results_found': len(results),
+                    'query': scene.get('scene_description', '')[:50],
+                    'results_found': len(videos),
                     'sample_videos': [
                         {
-                            'title': r.title,
-                            'url': r.url,
-                            'duration': r.duration,
+                            'title': v['title'],
+                            'url': v['url'],
+                            'duration': v['duration'],
                             'relevance_score': 0.8  # Channel videos are pre-vetted
                         }
-                        for r in results[:3]
+                        for v in videos[:3]
                     ]
                 })
             except Exception as e:
