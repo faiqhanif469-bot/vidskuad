@@ -59,8 +59,8 @@ class Settings(BaseSettings):
     JOB_TIMEOUT_MINUTES: int = 30  # Job timeout
     
     # Storage settings
-    USE_LOCAL_STORAGE: bool = False
-    LOCAL_STORAGE_PATH: str = "/app/output"
+    USE_LOCAL_STORAGE: bool = os.getenv("USE_LOCAL_STORAGE", "false").lower() in ("true", "1", "yes")
+    LOCAL_STORAGE_PATH: str = os.getenv("LOCAL_STORAGE_PATH", "/app/output")
     
     class Config:
         env_file = ".env"

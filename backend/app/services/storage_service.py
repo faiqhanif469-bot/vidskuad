@@ -50,8 +50,8 @@ class StorageService:
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(file_path, dest_path)
                 
-                # Return local URL
-                return f"/api/files/{object_name}"
+                # Return full URL (will be accessible via nginx)
+                return f"https://vidsquad.duckdns.org/api/files/{object_name}"
             else:
                 # Upload to Spaces
                 self.client.upload_file(
