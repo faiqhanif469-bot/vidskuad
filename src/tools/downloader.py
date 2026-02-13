@@ -1,48 +1,184 @@
 """
 Video downloader - downloads videos from various platforms
+Production-grade with cookie rotation for 100s of concurrent downloads
 """
 
 import os
+import time
+import random
 from pathlib import Path
 from typing import Optional
 from src.core.models import VideoResult, Platform
+from src.tools.cookie_manager import get_cookie_manager
 
 
 class VideoDownloader:
-    """Download videos from various platforms"""
+    """
+    Download videos from various platforms with production-grade features
+    
+    Features:
+    - Automatic cookie rotation for YouTube
+    - Retry logic with exponential backoff
+    - Thread-safe for concurrent downloads
+    - Health tracking and auto-recovery
+    """
     
     def __init__(self, output_dir: str = "downloads"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Get cookie manager
+        self.cookie_manager = get_cookie_manager()
+        
+        # Retry configuration
+        self.max_retries = 3
+        self.base_delay = 2  # seconds
     
     def download_youtube(self, video: VideoResult, output_name: Optional[str] = None) -> Optional[str]:
-        """Download YouTube video using yt-dlp"""
-        try:
-            import yt_dlp
+        """
+        Download YouTube video using yt-dlp with cookie rotation
+        
+        Automatically retries with different cookies on failure
+        """
+        import yt_dlp
+        
+        if output_name is None:
+            output_name = f"{video.id}.mp4"
+        
+        output_path = self.output_dir / output_name
+        
+        # Try download with cookie rotation
+        for attempt in range(self.max_retries):
+            # Get best available cookie
+            cookie = self.cookie_manager.get_best_cookie()
             
-            if output_name is None:
-                output_name = f"{video.id}.mp4"
+            if cookie is None:
+                print("❌ No cookies available - please add cookie files to cookies/ directory")
+                return None
             
-            output_path = self.output_dir / output_name
+            try:
+                print(f"📥 Downloading with {cookie.name} (attempt {attempt + 1}/{self.max_retries})...")
+                
+                ydl_opts = {
+                    'format': 'best[ext=mp4]/best',
+                    'outtmpl': str(output_path),
+                    'quiet': False,
+                    'no_warnings': False,
+                    'cookiefile': cookie.path,  # Use cookie file
+                    
+                    # Additional options to avoid detection
+                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'referer': 'https://www.youtube.com/',
+                    
+                    # Rate limiting
+                    'sleep_interval': random.uniform(1, 3),
+                    'max_sleep_interval': 5,
+                    
+                    # Retry settings
+                    'retries': 2,
+                    'fragment_retries': 2,
+                }
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([video.url])
+                
+                # Success!
+                self.cookie_manager.report_success(cookie)
+                print(f"✅ Downloaded: {output_name}")
+                return str(output_path)
             
-            ydl_opts = {
-                'format': 'best[ext=mp4]',
-                'outtmpl': str(output_path),
-                'quiet': False,
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video.url])
-            
-            return str(output_path)
-        except Exception as e:
-            print(f"Download error: {e}")
-            return None
+            except Exception as e:
+                error_msg = str(e).lower()
+                
+                # Report failure
+                self.cookie_manager.report_failure(cookie, str(e)[:50])
+                
+                # Check if it's a bot detection error
+                if any(keyword in error_msg for keyword in ['sign in', 'bot', 'captcha', 'blocked', '403']):
+                    print(f"🤖 Bot detected with {cookie.name}, rotating to next cookie...")
+                else:
+                    print(f"❌ Download error: {e}")
+                
+                # Exponential backoff before retry
+                if attempt < self.max_retries - 1:
+                    delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⏳ Waiting {delay:.1f}s before retry...")
+                    time.sleep(delay)
+        
+        print(f"❌ Failed to download after {self.max_retries} attempts")
+        return None
     
-    def download(self, video: VideoResult, output_name: Optional[str] = None) -> Optional[str]:
-        """Download video based on platform"""
-        if video.source == Platform.YOUTUBE:
-            return self.download_youtube(video, output_name)
+    def download(self, url: str, output_dir: Optional[str] = None) -> Optional[str]:
+        """
+        Download video from URL
+        
+        Args:
+            url: Video URL
+            output_dir: Optional output directory (overrides default)
+        
+        Returns:
+            Path to downloaded video or None
+        """
+        import yt_dlp
+        
+        # Use custom output dir if provided
+        if output_dir:
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
         else:
-            print(f"Download not implemented for {video.source.value}")
-            return None
+            output_path = self.output_dir
+        
+        # Try download with cookie rotation
+        for attempt in range(self.max_retries):
+            cookie = self.cookie_manager.get_best_cookie()
+            
+            if cookie is None:
+                print("❌ No cookies available")
+                # Try without cookies as fallback
+                cookie_path = None
+            else:
+                cookie_path = cookie.path
+            
+            try:
+                print(f"📥 Downloading from {url[:50]}... (attempt {attempt + 1}/{self.max_retries})")
+                
+                ydl_opts = {
+                    'format': 'best[ext=mp4]/best',
+                    'outtmpl': str(output_path / '%(id)s.%(ext)s'),
+                    'quiet': False,
+                    'no_warnings': False,
+                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'referer': 'https://www.youtube.com/',
+                    'sleep_interval': random.uniform(1, 3),
+                    'retries': 2,
+                }
+                
+                if cookie_path:
+                    ydl_opts['cookiefile'] = cookie_path
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    filename = ydl.prepare_filename(info)
+                
+                # Success!
+                if cookie:
+                    self.cookie_manager.report_success(cookie)
+                
+                print(f"✅ Downloaded: {filename}")
+                return filename
+            
+            except Exception as e:
+                if cookie:
+                    self.cookie_manager.report_failure(cookie, str(e)[:50])
+                
+                print(f"❌ Download error: {e}")
+                
+                if attempt < self.max_retries - 1:
+                    delay = self.base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(delay)
+        
+        return None
+    
+    def get_stats(self) -> dict:
+        """Get download statistics"""
+        return self.cookie_manager.get_stats()

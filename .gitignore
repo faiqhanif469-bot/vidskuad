@@ -48,3 +48,8 @@ cache/
 # Logs
 *.log
 logs/
+
+# Cookies (sensitive - never commit)
+cookies/*.txt
+!cookies/.gitkeep
+!cookies/README.md
